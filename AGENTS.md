@@ -1,165 +1,223 @@
 # AGENTS.md — Future Pizza (Pygame)
 
-**Context for AI assistants:** This is a Pygame-based action game where the player controls a pizza delivery person defending against attacking dogs using pizza projectiles. **All game logic is in `juego.py`—this is the only file to modify.**
+**Contexto para asistentes de IA:** Este es un juego de acción hecho con Pygame donde el jugador controla a un repartidor de pizzas que se defiende de perros atacantes usando pizzas como proyectiles. **Todo el código está en `game/` — arquitectura modular.**
 
-## Quick start
+## Inicio rápido
 
 ```bash
-pip install pygame-ce   # Community Edition, NOT "pygame"
-python juego.py
+pip install pygame-ce   # Community Edition, NO "pygame"
+python game/main.py
 ```
 
-Window size: **1100×700 pixels**  
-FPS: **60 (locked with Clock)**
+Ventana: **1100×700 píxeles**
+FPS: **60 (fijados con Clock)**
 
 ---
 
-## Project structure
+## Estructura del proyecto
 
-- **`juego.py`** — Single-file game (only file to edit). ~800 lines, organized in sections with clear dividers.
-- **`Recursos/`** — 4 PNG sprite sheets (paths are relative `"./Recursos/..."`):
-  - `FONDO.png` — background (scaled 1160×700)
-  - `Reparte.png` — spritesheet for repartidor (delivery person); code extracts subsurface (179, 25, 221, 374) then scales to 64×108
-  - `Perros.png` — dog sprite (scaled 58×72)
-  - `Piz.png` — pizza sprite (scaled 32×32; also used as window icon)
-- **`Music/`** — Audio files (all must exist or game crashes):
-  - `disparo.mp3` (volume 0.4) — pizza fire sound
-  - `golpe.mp3` (volume 0.6) — collision/hit sound
-  - `vida_perdida.mp3` (volume 0.8) — life lost sound
-  - `MusicaFondo.mp3` (volume 0.5, looped) — background music
-
----
-
-## Core Game Mechanics
-
-### **Player: Repartidor (Delivery Person)**
-- **Sprite:** 64×108 pixels, spawns at (368, 450)
-- **Controls:** Arrow keys (4px/frame movement)
-  - `velocidad_repartidor = 4`
-  - Position: `repartidor_x`, `repartidor_y`
-  - Velocity: `repartidor_cambio_x`, `repartidor_cambio_y`
-- **Lives:** Starts with `vidas = 3`
-- **Invulnerability:** 1 second (`intervalo_invulnerabilidad = 1000`) after being hit
-- **Dash/Stamina:** `energia_dash` (0–100, replenishes over time)
-
-### **Enemies: Perros (Dogs)**
-- **Sprite:** 58×72 pixels
-- **Behavior:** Chase the repartidor at `velocidad_perro` px/frame
-- **Dynamic Difficulty:**
-  - Velocity increases from 2.5–5 px/frame as game progresses
-  - Spawn interval decreases from 2000ms to 800ms (min)
-  - Function: `calcular_dificultad(tiempo_transcurrido)` computes speed & spawn rate based on elapsed time
-- **Spawn:** Random screen edges every `intervalo_aparicion` ms (controlled by difficulty)
-- **Data Structure:** `perros = []` where each dog is `[x, y]`
-- **Collision Detection:** Uses distance calculation from repartidor center
-
-### **Weapons: Pizzas (Projectiles)**
-- **Sprite:** 32×32 pixels
-- **Speed:** `velocidad_pizza = 11` px/frame
-- **Direction:** Toward nearest dog via `encontrar_perro_mas_cercano()`
-- **Firing:** Manual (left mouse click), cooldown `cooldown_disparo = 180` ms
-- **Data Structure:** 4 parallel lists (all same length):
-  - `pizzas_x`, `pizzas_y` — current positions
-  - `pizzas_dx`, `pizzas_dy` — velocity vectors (pre-normalized × speed)
-- **Removal:** Pizzas auto-despawn when > 32px outside screen bounds
-- **Collision:** Pizza hits dog → explosion effect + sound + points
-
-### **Game State & Progression**
-- **Score:** `puntuacion` (increments when pizza hits dog)
-- **Game Over:** `game_over = False` (can be set to True to end)
-- **Time Tracking:** `tiempo_inicio` (ms when game started)
-- **Difficulty Scaling:** Tied to elapsed time, not score
-
-### **Visual Effects**
-- **Particles:** `particulas` list stores explosion effects (position, velocity, lifespan, size)
-  - Created on dog collision via `crear_explosion(x, y)`
-  - Colors: yellow → orange as lifespan decreases
-  - Updated/drawn each frame
-- **UI:**
-  - Lives (top-left): Red circles, 1 circle per life
-  - Score (top-right): "Puntos: {puntuacion}" in white
-  - Energy bar (not yet drawn, but `energia_dash` exists for future use)
+```
+/game
+├── main.py                     # Entry point: python game/main.py
+├── config.py                   # Todas las constantes y rutas de assets
+│
+├── core/
+│   ├── game.py                 # class Juego — orquestador y game loop
+│   └── states.py               # ESTADO_JUGANDO, ESTADO_GAME_OVER
+│
+├── entities/
+│   ├── player.py               # class Repartidor
+│   ├── enemy.py                # class Perro (IA de persecución + flanqueo)
+│   ├── projectile.py           # class Pizza
+│   └── effects.py              # class Particula, class HitPopup
+│
+├── systems/
+│   ├── collision.py            # Funciones de colisión puras (sin mutación)
+│   ├── difficulty.py           # Cálculo de dificultad, spawn de enemigos, explosiones
+│   └── sound.py                # class SoundManager
+│
+├── ui/
+│   └── hud.py                  # dibujar_hud(), dibujar_game_over()
+│
+├── utils/
+│   ├── helpers.py              # distancia(x1,y1,x2,y2)
+│   └── loaders.py              # cargar_imagen(), cargar_sonido(), spritesheet
+│
+└── assets/
+    ├── images/                 # Sprites PNG (antes Recursos/)
+    │   ├── FONDO.png           # fondo (escalado 1160×700)
+    │   ├── Reparte.png         # spritesheet; subsurface(179,25,221,374)→64×108
+    │   ├── Perros.png          # sprite del perro (escalado 58×72)
+    │   ├── Piz.png             # sprite de pizza (32×32; también ícono de ventana)
+    │   └── corazon.png         # ícono de corazón para vidas (32×32)
+    └── sounds/                 # Audio MP3 (antes Music/)
+        ├── disparo.mp3         # volumen 0.4 — sonido al disparar
+        ├── golpe.mp3           # volumen 0.6 — sonido al golpear
+        ├── vida_perdida.mp3    # volumen 0.8 — sonido al perder vida
+        └── MusicaFondo.mp3     # volumen 0.5 — música de fondo en bucle
+```
 
 ---
 
-## Code Structure & Key Functions
+## Mecánicas principales del juego
 
-### **Drawing Functions**
+### **Jugador: Repartidor**
+- **Sprite:** 64×108 píxeles, aparece en (368, 450)
+- **Controles:** Flechas del teclado (movimiento de 4px/frame)
+  - `VEL_REPARTIDOR = 4`
+  - Posición/velocidad en el objeto `Repartidor`
+- **Vidas:** Empieza con `vidas = 3`
+- **Invencibilidad:** 1 segundo (`INTERVALO_INVULNERABILIDAD = 1000`) después de recibir daño
+- **Dash/Energía:** `energia_dash` (0–100, se recarga con el tiempo), se activa con Ctrl Derecho
+
+### **Enemigos: Perros**
+- **Sprite:** 58×72 píxeles
+- **Comportamiento:** Persiguen al repartidor con flanqueo opcional (modo 1/2)
+- **Dificultad dinámica:**
+  - Velocidad aumenta de 2.5 a 5 px/frame mediante `systems/difficulty.calcular()`
+  - Intervalo de aparición disminuye de 2000ms a 800ms (mínimo)
+- **Aparición:** Bordes aleatorios de la pantalla cada intervalo (controlado por dificultad)
+- **Colisión:** Usa `colliderect` basado en `get_rect()`
+
+### **Armas: Pizzas (Proyectiles)**
+- **Sprite:** 32×32 píxeles
+- **Velocidad:** `VEL_PIZZA = 11` px/frame
+- **Dirección:** Hacia la posición actual del mouse
+- **Disparo:** Click izquierdo o ESPACIO; enfriamiento `COOLDOWN_DISPARO = 180` ms
+- **Eliminación:** Las pizzas se eliminan automáticamente cuando están a más de 32px fuera de la pantalla
+- **Colisión:** Pizza golpea perro → partículas de explosión + popup + sonido + 10 puntos
+
+### **Estado del juego y progresión**
+- **Puntuación:** `puntuacion` (aumenta en 10 por cada perro golpeado)
+- **Game Over:** `estado_juego` cambia a `ESTADO_GAME_OVER`
+- **Seguimiento de tiempo:** `tiempo_inicio` (ms cuando comenzó el juego), `tiempo_transcurrido`
+- **Escalado de dificultad:** Ligado al tiempo transcurrido, no a la puntuación
+
+### **Efectos visuales**
+- **Partículas:** Lista de `Particula` al golpear un perro mediante `difficulty.crear_explosion()`
+  - Colores: amarillo → naranja a medida que disminuye la vida
+- **Interfaz:**
+  - Vidas (arriba a la izquierda): Íconos de corazón desde `corazon.png`
+  - Puntuación (arriba a la derecha): "Puntos: {puntuacion}" en blanco
+  - Temporizador (arriba al centro): Formato "m:ss"
+  - Barra de dash (debajo de las vidas): Barra de energía cian/naranja
+  - Popups de golpe: Texto "+10" flotante
+
+---
+
+## Arquitectura del código y clases principales
+
+### **core/game.py — class Juego (Orquestador)**
 ```python
-repartidor(x, y)              # Render player sprite
-perro(x, y)                   # Render dog sprite
-pizza(x, y)                   # Render pizza sprite
-dibujar_pizzas()              # Loop through all active pizzas
-dibujar_vidas()               # Draw life circles (top-left)
-dibujar_puntuacion()          # Draw score text (top-right)
-dibujar_particulas()          # Render all particles
+def ejecutar(self):             # Bucle principal: eventos → actualizar → dibujar
+def _manejar_eventos(t):        # Teclado, mouse, cerrar ventana
+def _actualizar(t):             # Lógica del juego (delega en systems/)
+def _dibujar(t):                # Renderizado (delega en ui/hud.py)
+def _intentar_disparar(t):      # Disparar pizza hacia el mouse
 ```
 
-### **Game Logic Functions**
+### **entities/ — Objetos del juego**
 ```python
-encontrar_perro_mas_cercano(origen_x, origen_y)  # Returns (x, y, distance) of nearest dog
-disparar_pizza(origen_x, origen_y)               # Fire pizza toward mouse from origin
-actualizar_pizzas()                              # Move all pizzas, remove off-screen
-calcular_dificultad(tiempo_transcurrido)         # Return (velocity, spawn_interval) tuple
-crear_explosion(x, y)                            # Spawn particles at position
-actualizar_particulas()                          # Move particles, remove dead ones
+Repartidor.mover(multiplicador)     # Aplicar velocidad + limitar a la pantalla
+Perro.perseguir(target_x, target_y) # Perseguir con comportamiento de flanqueo opcional
+Pizza.mover()                       # Mover proyectil
+Particula.actualizar()              # Mover partícula, disminuir vida
+HitPopup.actualizar()               # Flotar hacia arriba, disminuir temporizador
 ```
 
-### **Main Loop (Loop Sections in juego.py)**
-1. **Event Handling** — Arrow keys, mouse clicks, window close
-2. **Update Player** — Apply `repartidor_cambio_x/y` velocities, clamp to screen
-3. **Spawn Dogs** — If time since last spawn > `intervalo_aparicion`, add new dog
-4. **Update Dogs** — Chase repartidor; check collision with player
-5. **Fire Pizzas** — On mouse click + cooldown met
-6. **Update Pizzas** — Move and remove off-screen
-7. **Collision Detection** — Pizza ∩ dog → eliminate dog, create explosion, add score
-8. **Update Particles** — Move and fade explosions
-9. **Render Everything** — Background, all sprites, UI, particles
-10. **Frame Limit** — `reloj.tick(FPS)` at 60 FPS
+### **systems/ — Sistemas del juego**
+```python
+collision.separar_perros(perros)           # Separar perros entre sí (pura)
+collision.jugador_con_perros(jug, perros)  # Colisión jugador-perro (pura)
+collision.pizzas_con_perros(pizz, perros)  # Colisión pizza-perro (pura)
+difficulty.calcular(tiempo)                # Devuelve (vel_perro, intervalo)
+difficulty.generar_apariciones(t, vel)     # Devuelve lista[Perro]
+difficulty.crear_explosion(x, y)           # Devuelve lista[Particula]
+sound.SoundManager                         # Audio centralizado
+```
+
+### **ui/hud.py — Funciones del HUD**
+```python
+dibujar_hud(pantalla, jugador, puntuacion, tiempo, fuente_ppal, fuente_hit, corazon_img, hits)
+dibujar_game_over(pantalla, puntuacion, tiempo_sobrevivido_ms)
+```
+
+### **Bucle principal (en game.py)**
+1. **Límite de frames** — `reloj.tick(FPS)` a 60 FPS
+2. **Manejo de eventos** — Flechas del teclado, clicks del mouse, ESPACIO, cerrar ventana
+3. **Actualización** — Dash, movimiento, dificultad, IA de perros, apariciones, movimiento de proyectiles, colisiones (3 tipos), partículas, popups
+4. **Renderizado** — Fondo, todas las entidades, HUD, superposición de game over
+5. **Volcado de pantalla** — `pygame.display.update()`
 
 ---
 
-## Known Implementation Details
+## Grafo de dependencias
 
-- **No Classes:** Uses globals + parallel lists (open to refactoring, but works fine)
-- **Coordinate System:** (0,0) is top-left; X increases right, Y increases down (standard Pygame)
-- **Collision Detection:** Currently uses squared distance (Euclidean) for dog-pizza
-- **Sprite Offsets:**
-  - Pizzas spawn at `(origen_x + 16, origen_y + 38)` to center on player
-  - Sprite centers are approximated, not pixel-perfect
-- **No Pause/Menu:** Game runs continuously until window closes
-- **No Waves/Bosses:** Linear difficulty scaling only
+```
+main.py
+  └── core/game.py
+        ├── config.py              ← constantes de solo lectura
+        ├── core/states.py         ← enumeraciones de estado
+        ├── entities/player.py     ← config
+        ├── entities/enemy.py      ← config, utils/helpers
+        ├── entities/projectile.py ← config
+        ├── entities/effects.py    ← (solo pygame)
+        ├── systems/collision.py   ← entities/*, utils/helpers, systems/difficulty
+        ├── systems/difficulty.py  ← config, entities/enemy, entities/effects
+        ├── systems/sound.py       ← config, utils/loaders
+        └── ui/hud.py              ← config
+        └── utils/loaders.py       ← config
+        └── utils/helpers.py       ← (sin dependencias)
+```
 
----
-
-## AI Assistant Task Guide
-
-When working on this game, follow this flow:
-
-1. **Read `juego.py` thoroughly** to understand the current implementation
-2. **Identify the section** (event handling, update loop, collision, rendering, etc.)
-3. **Make surgical changes** — avoid refactoring unless explicitly requested
-4. **Test with `python juego.py`** to verify changes work
-5. **Preserve parallel list consistency** — if you add/remove dogs or pizzas, maintain all 4 pizza lists in sync
-6. **Check asset paths** — all `./Recursos/` and `./Music/` files must exist
-7. **Document large changes** — add comments in the code for clarity
-
-### Common Tasks
-
-- **Add a new mechanic** (e.g., powerup, boss, waves) → Insert function + integrate into main loop
-- **Adjust difficulty** → Modify `calcular_dificultad()` or spawn/speed constants
-- **Fix bugs** → Trace through main loop; check collision logic, boundary conditions
-- **Optimize** → Profile first (FPS counter?), then refactor if needed
-- **Visual tweaks** → Adjust sprite sizes, positions, particle effects; test rendering
+Sin dependencias circulares.
 
 ---
 
-## Known Quirks & Constraints
+## Detalles de implementación conocidos
 
-- Uses **pygame-ce** (community fork), **not** upstream `pygame`
-- **Hard-coded constants** — window size, sprite positions, speeds all set at module level
-- **Single commit** on `main` — no version history
-- **No external config** — all settings in code
-- **No error handling** — missing assets cause immediate crash
-- **Invulnerability after hit** — prevents rapid life loss when colliding with multiple dogs
-- **Mouse-based pizza aiming** — pizzas always fire toward current mouse position
+- **POO en todo:** Los objetos del juego son clases con estado interno
+- **Sistema de coordenadas:** (0,0) arriba a la izquierda; X→derecha, Y→abajo (estándar de Pygame)
+- **Detección de colisiones:** Usa `Rect.colliderect()` con `get_rect()` en todas las entidades
+- **Desplazamiento de sprites:** Las pizzas aparecen en `(origen_x + 16, origen_y + 38)` para centrarse en el jugador
+- **Sin pausa/menú:** El juego se ejecuta continuamente hasta que se cierra la ventana
+- **Sin oleadas/jefes:** Solo escalado lineal de dificultad
+- **Funciones de colisión puras:** Reciben listas y devuelven listas modificadas; sin mutación in-place
+- **Fuentes creadas una vez** en `Juego.__init__()`, reutilizadas en cada frame
+- **SoundManager** está centralizado; `Juego` invoca los sonidos en los eventos, las entidades no conocen el audio
+
+---
+
+## Guía de tareas para asistentes de IA
+
+Al trabajar en este juego, sigue este flujo:
+
+1. **Lee el módulo relevante** — cada módulo tiene una única responsabilidad
+   - Añadir nueva entidad → `entities/`
+   - Añadir nuevo sistema → `systems/`
+   - Cambiar interfaz → `ui/hud.py`
+   - Cambiar dificultad → `systems/difficulty.py`
+   - Cambiar constantes → `config.py`
+   - Cambiar lógica del bucle principal → `core/game.py`
+2. **Comprende el orden de dependencias** — `core/` importa todo lo demás; `entities/` solo importa `config`/`utils`
+3. **Añadir un nuevo tipo de enemigo** → crear nueva clase en `entities/`, implementar `get_rect()`, `perseguir()`, `dibujar()`, luego integrar en `core/game.py`
+4. **Mantener funciones de colisión puras** — nunca mutar listas in-place dentro de `systems/collision.py`
+5. **Probar con `python game/main.py`** para verificar que los cambios funcionan
+6. **Verificar rutas de assets** — todas las referencias mediante `config.RUTA_IMAGENES` / `RUTA_SONIDOS`
+
+### Tareas comunes
+
+- **Añadir una nueva mecánica** (ej. powerup, jefe, oleadas) → Crear clase de entidad + función de sistema + integrar en `game.py`
+- **Ajustar dificultad** → Modificar `systems/difficulty.py` o `config.py`
+- **Corregir errores** → Rastrear `Juego._actualizar()`; revisar el flujo de colisiones
+- **Ajustes visuales** → Modificar tamaños/posiciones de sprites en `config.py` o `entities/`
+
+---
+
+## Peculiaridades y restricciones conocidas
+
+- Usa **pygame-ce** (fork comunitario), **NO** el `pygame` oficial
+- Toda la configuración en `config.py` — sin archivos de configuración externos
+- Sin manejo de errores — la falta de assets causa un crash inmediato
+- Invencibilidad después de ser golpeado — evita pérdida rápida de vidas al colisionar con múltiples perros
+- Apuntado de pizzas basado en el mouse — las pizzas siempre se disparan hacia la posición actual del mouse
